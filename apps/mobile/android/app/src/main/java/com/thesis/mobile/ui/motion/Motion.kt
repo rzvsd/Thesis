@@ -55,6 +55,11 @@ object ThesisMotion {
     const val Draw = 900
     /** Chart range change. */
     const val Morph = 500
+    /**
+     * A one-shot mark (the notes trail's accent rule on the entry a note search hit opens at) holds this long before
+     * it fades over [Base]: about the page's scroll to it ([Screen]), then a [Draw].
+     */
+    const val MarkHold = Screen + Draw
     /** Skeleton sweep and rest. */
     const val ShimmerSweep = 1400
     const val ShimmerRest = 600

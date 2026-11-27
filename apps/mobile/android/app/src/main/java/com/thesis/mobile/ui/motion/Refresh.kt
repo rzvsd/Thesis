@@ -11,6 +11,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.thesis.mobile.ui.theme.LocalReducedMotion
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
+import com.thesis.mobile.ui.theme.heroOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -73,7 +75,10 @@ import kotlinx.coroutines.launch
 /**
  * Pull-to-refresh container. Screens do not call it directly: the kit's `ui.components.ThesisRefreshBox` (spec
  * 3 #34) stays the one public entry point and delegates here, so the two packages never export the same name.
- * [indicatorTop] is where the gap opens (below a transparent top bar, for example).
+ * [indicatorTop] is where the hairline sits (below a transparent top bar, for example). [onHero]: the content opens
+ * with a HeroBand under the status and top bars (Pulse): the gap the pull opens at the top is painted the band's
+ * navy (`heroBg`), so no page-coloured strip shows above a cover (2.7) and the top bar's light icons stay legible,
+ * and the hairline takes the band's palette.
  * [refreshLabel] / [refreshingLabel] are the accessibility action and status (screens pass their copy).
  */
 // PullToRefreshState and Modifier.pullToRefresh are @ExperimentalMaterial3Api in Material3 1.3.x (the API this
@@ -86,11 +91,13 @@ fun ThesisPullRefresh(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     indicatorTop: Dp = 0.dp,
+    onHero: Boolean = false,
     refreshLabel: String = MotionCopy.REFRESH,
     refreshingLabel: String = MotionCopy.REFRESHING,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val density = LocalDensity.current
+    val palette = LocalThesisPalette.current
     val reduced = LocalReducedMotion.current
     val haptics = rememberHaptics()
     val currentRefreshing by rememberUpdatedState(refreshing)
@@ -123,27 +130,42 @@ fun ThesisPullRefresh(
                 if (enabled && !refreshing) {
                     customActions = listOf(CustomAccessibilityAction(refreshLabel) { onRefresh(); true })
                 }
-            },
+            }
+            .then(
+                if (onHero && !reduced) {
+                    // The gap above the moved content continues the HeroBand (the content itself never moves
+                    // under reduced motion, so there is no gap to paint then).
+                    Modifier.drawBehind {
+                        val gap = state.follow.value * ThesisMotion.RefreshTravel.toPx()
+                        if (gap > 0f) drawRect(palette.heroBg, size = Size(size.width, gap))
+                    }
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         Box(
             Modifier.graphicsLayer {
                 translationY = if (reduced) 0f else state.follow.value * with(density) { ThesisMotion.RefreshTravel.toPx() }
             },
         ) { content() }
-        RefreshHairline(
-            pullProgress = { state.distanceFraction },
-            refreshing = refreshing,
-            phase = loop,
-            label = refreshingLabel,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = indicatorTop)
-                .graphicsLayer {
-                    // Centre the line in the gap the content opened.
-                    val gap = if (reduced) ThesisMotion.RefreshRest.toPx() else state.follow.value * ThesisMotion.RefreshTravel.toPx()
-                    translationY = (gap - size.height) / 2f
-                },
-        )
+        val linePalette = remember(palette, onHero) { if (onHero) heroOf(palette) else palette }
+        CompositionLocalProvider(LocalThesisPalette provides linePalette) {
+            RefreshHairline(
+                pullProgress = { state.distanceFraction },
+                refreshing = refreshing,
+                phase = loop,
+                label = refreshingLabel,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = indicatorTop)
+                    .graphicsLayer {
+                        // Centre the line in the gap the content opened.
+                        val gap = if (reduced) ThesisMotion.RefreshRest.toPx() else state.follow.value * ThesisMotion.RefreshTravel.toPx()
+                        translationY = (gap - size.height) / 2f
+                    },
+            )
+        }
     }
 }
 

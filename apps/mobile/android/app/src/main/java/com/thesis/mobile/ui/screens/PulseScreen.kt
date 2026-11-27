@@ -249,7 +249,7 @@ fun PulseScreen(
                 )
             },
         ) { b ->
-            ThesisRefreshBox(refreshing = refreshing, onRefresh = onRefresh, indicatorTop = barHeight) {
+            ThesisRefreshBox(refreshing = refreshing, onRefresh = onRefresh, indicatorTop = barHeight, onHero = true) {
                 // A refresh failed while an issue is shown: a banner under the hero line. The meta line right above
                 // it already gives the issue's time (and the eyebrow its date), so the banner does not repeat them.
                 val stale = when {

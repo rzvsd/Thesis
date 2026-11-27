@@ -1,9 +1,13 @@
 package com.thesis.mobile.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -27,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -322,7 +327,7 @@ data class NoteEntry(
  * and an older one is not, that older note offers "Carry forward" ([onCarryForward] copies it into the new note).
  *
  * [focusKey] names the entry a note search hit opens at (5.27): an older one opens expanded, so the matched words are
- * in view, and a 3 dp accent rule in the gutter beside it marks it once, then fades ([NOTE_MARK_HOLD] ms, then
+ * in view, and a 3 dp accent rule in the gutter beside it marks it once, then fades (`ThesisMotion.MarkHold` ms, then
  * `Base`; a `Quick` crossfade under reduced motion, which keeps the rule still). [onFocusPlaced] gets the entry's
  * top (px from the trail's top) whenever it is placed: the host scrolls there once, so the entry sits right under
  * its bar (the page knows its bar and scroll; the trail does not).
@@ -336,35 +341,69 @@ fun NotesTrail(
     onCarryForward: ((NoteEntry) -> Unit)? = null,
     editor: @Composable (NoteEntry) -> Unit,
 ) {
+    // Keys the trail has shown: an entry whose key is new after the first paint joins with the 4.4 item motion.
+    val shown = remember { HashSet<String>() }
     if (entries.isEmpty()) return
+    val firstPaint = shown.isEmpty()
+    SideEffect { entries.forEach { shown += it.key } }
     val newest = entries.first()
     val carryFrom = if (newest.text.isBlank()) entries.drop(1).firstOrNull { it.text.isNotBlank() } else null
     val focus = focusKey?.takeIf { k -> entries.any { it.key == k } }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(ThesisSpace.xl)) {
         key(newest.key) {
-            Column(
-                Modifier.focusedEntry(newest.key == focus, focus, onFocusPlaced),
-                verticalArrangement = Arrangement.spacedBy(ThesisSpace.s),
+            JoiningEntry(
+                joins = !firstPaint && newest.key !in shown,
+                modifier = Modifier.focusedEntry(newest.key == focus, focus, onFocusPlaced),
             ) {
-                EntryHeader(newest)
-                editor(newest)
+                Column(verticalArrangement = Arrangement.spacedBy(ThesisSpace.s)) {
+                    EntryHeader(newest)
+                    editor(newest)
+                }
             }
         }
         entries.drop(1).forEach { entry ->
             key(entry.key) {
-                OlderNote(
-                    entry,
-                    carry = if (entry == carryFrom) onCarryForward else null,
-                    focused = entry.key == focus,
+                JoiningEntry(
+                    joins = !firstPaint && entry.key !in shown,
                     modifier = Modifier.focusedEntry(entry.key == focus, focus, onFocusPlaced),
-                )
+                ) {
+                    OlderNote(
+                        entry,
+                        carry = if (entry == carryFrom) onCarryForward else null,
+                        focused = entry.key == focus,
+                    )
+                }
             }
         }
     }
 }
 
-/** How long the focused entry's mark holds before it fades: about the page's scroll to it (`Screen`), then a `Draw`. */
-const val NOTE_MARK_HOLD = ThesisMotion.Screen + ThesisMotion.Draw
+/**
+ * A trail entry that [joins] after the trail's first paint (a new report's note) comes in with the 4.4 item motion,
+ * the same as `thesisItemMotion` in the lazy lists: the trail opens room for it (`spatial`) while it fades in over
+ * `Base` after `CrossfadeDelay`. Under reduced motion it fades (`Quick`) and takes its room at once. Entries already
+ * there at first paint, and every entry after its arrival, compose with no wrapper animation. [modifier] (the
+ * focused entry's mark and placement report) sits on the wrapper, outside its clip, so its position is the entry's
+ * own in the trail.
+ */
+@Composable
+private fun JoiningEntry(joins: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    val reduced = LocalReducedMotion.current
+    val visible = remember { MutableTransitionState(!joins).apply { targetState = true } }
+    AnimatedVisibility(
+        visibleState = visible,
+        modifier = modifier,
+        enter = if (reduced) {
+            fadeIn(ThesisMotion.quick())
+        } else {
+            fadeIn(tween(ThesisMotion.Base, ThesisMotion.CrossfadeDelay, ThesisMotion.EaseStandard)) +
+                expandVertically(ThesisMotion.spatial(), expandFrom = Alignment.Top)
+        },
+        exit = ExitTransition.None,
+    ) {
+        content()
+    }
+}
 
 /**
  * The focused entry ([focused]): reports its top to [onPlaced], and draws the
@@ -384,7 +423,7 @@ private fun Modifier.focusedEntry(focused: Boolean, focusKey: String?, onPlaced:
                 0f,
                 tween(
                     durationMillis = if (reduced) ThesisMotion.Quick else ThesisMotion.Base,
-                    delayMillis = NOTE_MARK_HOLD,
+                    delayMillis = ThesisMotion.MarkHold,
                     easing = ThesisMotion.EaseStandard,
                 ),
             )
@@ -414,7 +453,7 @@ private fun EntryHeader(entry: NoteEntry) {
 }
 
 @Composable
-private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?, focused: Boolean, modifier: Modifier) {
+private fun OlderNote(entry: NoteEntry, carry: ((NoteEntry) -> Unit)?, focused: Boolean, modifier: Modifier = Modifier) {
     val p = LocalThesisPalette.current
     val reduced = LocalReducedMotion.current
     // A note search hit's entry opens whole, so the matched words are in view.

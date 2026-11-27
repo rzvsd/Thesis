@@ -16,11 +16,10 @@ import kotlinx.coroutines.launch
 /**
  * A predictive back gesture held at any progress, for tests and frames of the seekable back (PR-4b). The harness
  * shim's `PreviewBack.press()` only runs a whole 0 → .5 → 1 gesture that commits; this drives the innermost
- * enabled predictive handler step by step: [start], any number of [progress] values, then [commit] (the flow
- * completes) or [cancel] (the handler's collect is cancelled, as on a device).
+ * enabled predictive handler step by step through `PreviewBack.gesture`: [start], any number of [progress] values,
+ * then [commit] (the flow completes) or [cancel] (the handler's collect is cancelled, as on a device).
  *
  * Every call runs the handler inline (unconfined) on the calling thread: call it from the UI thread (runOnIdle).
- * It reads the shim's registry by reflection; see HANDOFF-M for a public hook.
  */
 internal class BackGestureDriver(private val edge: BackSwipeEdge = BackSwipeEdge.Left) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
@@ -28,8 +27,8 @@ internal class BackGestureDriver(private val edge: BackSwipeEdge = BackSwipeEdge
     private var job: Job? = null
 
     fun start() {
-        val handler = checkNotNull(innermostPredictiveHandler()) { "no predictive back handler is enabled" }
-        job = scope.launch { handler(events.consumeAsFlow().map { ThesisBackEvent(it, edge) }) }
+        check(PreviewBack.innermostIsPredictive) { "no predictive back handler is enabled" }
+        job = scope.launch { PreviewBack.gesture(events.consumeAsFlow().map { ThesisBackEvent(it, edge) }) }
     }
 
     fun progress(value: Float) {
@@ -43,18 +42,5 @@ internal class BackGestureDriver(private val edge: BackSwipeEdge = BackSwipeEdge
     fun cancel() {
         job?.cancel()
         scope.cancel()
-    }
-
-    private companion object {
-        @Suppress("UNCHECKED_CAST")
-        fun innermostPredictiveHandler(): (suspend (kotlinx.coroutines.flow.Flow<ThesisBackEvent>) -> Unit)? {
-            // Fails loudly (never silently) if the shim's registry changes; HANDOFF-M asks WP-INT for a public hook.
-            val field = runCatching { PreviewBack::class.java.getDeclaredField("entries") }.getOrElse {
-                error("PreviewBack has no `entries` registry any more: switch BackGestureDriver to the shim's gesture hook")
-            }.apply { isAccessible = true }
-            val entries = field.get(PreviewBack) as List<PreviewBack.Entry>
-            val top = synchronized(entries) { entries.lastOrNull { it.enabled } } ?: return null
-            return top.onPredictive
-        }
     }
 }

@@ -52,8 +52,8 @@ sealed interface Destination {
 
     /**
      * One ticker (5.11). [pagerScope] names the list the Name pager walks through. [anchor] is where it opens:
-     * [ANCHOR_NOTES] ("Your notes", to read), [ANCHOR_WRITE_NOTE] (the newest note takes focus), [ANCHOR_CHANGES]
-     * ("Since the last report"), or null (the top).
+     * [ANCHOR_NOTES] ("Your notes", to read), [noteEntryAnchor] ("Your notes" at one entry), [ANCHOR_WRITE_NOTE]
+     * (the newest note takes focus), [ANCHOR_CHANGES] ("Since the last report"), or null (the top).
      */
     data class Name(val ticker: String, val pagerScope: String? = null, val anchor: String? = null) : Destination {
         override val tag get() = "name"
@@ -68,6 +68,21 @@ sealed interface Destination {
 
             /** A thesis drift alert: Name at its "Since the last report" block (5.21.5). */
             const val ANCHOR_CHANGES = "since-last-report"
+
+            /**
+             * A note search hit (5.27): "Your notes" at one trail entry, `notes:<reportId>` (see [noteEntryAnchor]).
+             * It rides in the [anchor] field, so the codec and saved stacks need nothing new.
+             */
+            const val ANCHOR_NOTE_ENTRY_PREFIX = "$ANCHOR_NOTES:"
+
+            /** The anchor that opens Name at "Your notes" on the trail entry for [reportId]. */
+            fun noteEntryAnchor(reportId: String): String = ANCHOR_NOTE_ENTRY_PREFIX + reportId
+
+            /** The trail entry key (report id) a [noteEntryAnchor] names; null for any other anchor. */
+            fun noteEntryOf(anchor: String?): String? =
+                anchor?.takeIf { it.startsWith(ANCHOR_NOTE_ENTRY_PREFIX) }
+                    ?.substring(ANCHOR_NOTE_ENTRY_PREFIX.length)
+                    ?.ifBlank { null }
         }
     }
 

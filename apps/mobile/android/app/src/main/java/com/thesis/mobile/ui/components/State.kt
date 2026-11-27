@@ -91,7 +91,8 @@ fun <T> StateCrossfade(
  * `ThesisPullRefresh`: the content follows the pull, a hairline grows from the centre (`accent` once armed, with
  * the `threshold()` haptic) and, while [refreshing], the `HairlineLoop` highlight travels across a 16 dp gap; a
  * TalkBack "Refresh" action and a polite "Refreshing" status. [refreshing] must come from the ViewModel (no fake
- * delays). [refreshLabel] / [refreshingLabel] are the accessibility copy.
+ * delays). [onHero]: the content opens with a HeroBand under the bars, so the pull's gap is painted navy (2.7).
+ * [refreshLabel] / [refreshingLabel] are the accessibility copy.
  */
 @Composable
 fun ThesisRefreshBox(
@@ -100,6 +101,7 @@ fun ThesisRefreshBox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     indicatorTop: Dp = 0.dp,
+    onHero: Boolean = false,
     refreshLabel: String = MotionCopy.REFRESH,
     refreshingLabel: String = MotionCopy.REFRESHING,
     content: @Composable BoxScope.() -> Unit,
@@ -110,6 +112,7 @@ fun ThesisRefreshBox(
         modifier = modifier,
         enabled = enabled,
         indicatorTop = indicatorTop,
+        onHero = onHero,
         refreshLabel = refreshLabel,
         refreshingLabel = refreshingLabel,
         content = content,

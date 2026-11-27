@@ -22,14 +22,14 @@ import com.thesis.mobile.model.SearchResultsView
 import com.thesis.mobile.preview.fixtures.NamesFixtures
 import com.thesis.mobile.preview.fixtures.ShellFixtures
 import com.thesis.mobile.ui.navigation.Destination
+import com.thesis.mobile.ui.navigation.Destination.Name.Companion.noteEntryAnchor
+import com.thesis.mobile.ui.navigation.Destination.Name.Companion.noteEntryOf
 import com.thesis.mobile.ui.navigation.DestinationCodec
 import com.thesis.mobile.ui.screens.NameAnchor
 import com.thesis.mobile.ui.screens.NameScreen
 import com.thesis.mobile.ui.shell.AppNavigator
 import com.thesis.mobile.ui.shell.ShellActions
 import com.thesis.mobile.ui.shell.ThesisShell
-import com.thesis.mobile.ui.shell.noteEntryAnchor
-import com.thesis.mobile.ui.shell.noteEntryOf
 import com.thesis.mobile.ui.theme.ThemeMode
 import com.thesis.mobile.ui.theme.ThesisTheme
 import org.junit.Assert.assertEquals

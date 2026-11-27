@@ -31,12 +31,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import com.thesis.mobile.model.DeepDiveReaderOutline
 import com.thesis.mobile.model.DeepDiveReportView
@@ -98,7 +93,9 @@ import com.thesis.mobile.ui.components.StatusSquare
 import com.thesis.mobile.ui.components.TextAction
 import com.thesis.mobile.ui.components.ThesisCard
 import com.thesis.mobile.ui.components.Upshot
+import com.thesis.mobile.ui.components.fitCompareTable
 import com.thesis.mobile.ui.components.ledeText
+import com.thesis.mobile.ui.components.rememberCompareTableNeeds
 import com.thesis.mobile.ui.copy.DeepDiveCopy
 import com.thesis.mobile.ui.format.Fmt
 import com.thesis.mobile.ui.format.LocalFmt
@@ -106,7 +103,6 @@ import com.thesis.mobile.ui.format.Missing
 import com.thesis.mobile.ui.format.PeriodKind
 import com.thesis.mobile.ui.icons.ThesisIcons
 import com.thesis.mobile.ui.motion.rememberHaptics
-import com.thesis.mobile.ui.theme.Kit
 import com.thesis.mobile.ui.theme.LocalThesisPalette
 import com.thesis.mobile.ui.theme.ThesisSpace
 import com.thesis.mobile.ui.theme.ThesisType
@@ -735,70 +731,22 @@ private fun TablesBlock(kicker: String, choices: List<TableChoice>, title: Strin
 }
 
 /**
- * The table that fits the width at the current font size, so no column is cut at the panel edge: [full] as it
- * is; else [full] with its row labels wrapped between words ("Operating / margin"); else [compact] the same way.
- * At sizes where even that cannot fit (2.0x on 360 dp) CompareTable's own scroll takes over.
+ * The table that fits the width at the current font size, so no column is cut at the panel edge: [full] when the
+ * kit's own fit keeps every column in view (it wraps row labels between words and steps down its cell padding
+ * before it scrolls); else [compact], which the kit fits the same way. At sizes where even that cannot fit (2.0x on
+ * 360 dp) CompareTable's own scroll takes over. The fit is the kit's (`fitCompareTable`), so this choice never
+ * disagrees with how the table lays out.
  */
 @Composable
 private fun FittingCompareTable(full: CompareTableModel, compact: CompareTableModel) {
-    val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val needs = rememberCompareTableNeeds(full)
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val widthPx = constraints.maxWidth
-        val shown = remember(full, compact, widthPx, density) {
-            val fit = TableFit(measurer, density)
-            fit.fitted(full, widthPx) ?: fit.fitted(compact, widthPx) ?: compact
+        val fullFits = remember(needs, widthPx, density) {
+            !with(density) { fitCompareTable(needs, widthPx) }.scrolls
         }
-        CompareTable(shown)
-    }
-}
-
-/**
- * CompareTable's widths, measured ahead: each value column as wide as its widest cell and never under
- * `Kit.tableColumnMin`, 12 dp cell padding each side; the label column takes what is left.
- */
-private class TableFit(private val measurer: TextMeasurer, density: Density) {
-    private val pad = with(density) { Kit.tableCellPaddingH.roundToPx() } * 2
-    private val colMin = with(density) { Kit.tableColumnMin.roundToPx() }
-
-    private fun w(text: String, style: TextStyle): Int =
-        if (text.isEmpty()) 0 else measurer.measure(AnnotatedString(text), style, softWrap = false, maxLines = 1).size.width
-
-    private fun column(head: Int, cells: List<String>): Int =
-        maxOf(colMin, head + pad, (cells.maxOfOrNull { w(it, ThesisType.tableNum) } ?: 0) + pad)
-
-    /** [model] as it fits [width]: unchanged, or with its labels wrapped between words; null when it cannot fit. */
-    fun fitted(model: CompareTableModel, width: Int): CompareTableModel? {
-        val values = model.columns.mapIndexed { c, col ->
-            column(maxOf(w(col.period, ThesisType.tableHead), w(col.filing.orEmpty(), ThesisType.tick)), model.rows.map { it.values[c] })
-        }.sum()
-        val delta = model.deltaHeader?.let { header ->
-            column(w(header, ThesisType.tableHead), model.rows.map { it.delta ?: model.missingDelta })
-        } ?: 0
-        val room = width - values - delta - pad
-        if (w(model.labelHeader, ThesisType.tableHead) > room) return null
-        val labels = model.rows.map { model.labelOf(it) }
-        if (labels.all { w(it, ThesisType.bodySmall) <= room }) return model
-        val wrappable = model.rows.all { it.unit.isNullOrBlank() }
-        if (!wrappable || labels.any { l -> l.split(' ').any { w(it, ThesisType.bodySmall) > room } }) return null
-        return model.copy(rows = model.rows.map { it.copy(label = wrap(it.label, room)) })
-    }
-
-    /** [label] in lines no wider than [room], broken between words only. */
-    private fun wrap(label: String, room: Int): String {
-        val lines = mutableListOf<String>()
-        var line = ""
-        label.split(' ').filter { it.isNotEmpty() }.forEach { word ->
-            val candidate = if (line.isEmpty()) word else "$line $word"
-            if (line.isEmpty() || w(candidate, ThesisType.bodySmall) <= room) {
-                line = candidate
-            } else {
-                lines += line
-                line = word
-            }
-        }
-        if (line.isNotEmpty()) lines += line
-        return lines.joinToString("\n")
+        CompareTable(if (fullFits) full else compact)
     }
 }
 

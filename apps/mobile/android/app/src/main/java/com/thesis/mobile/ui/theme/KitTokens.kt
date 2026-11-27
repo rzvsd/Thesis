@@ -88,6 +88,10 @@ internal object Kit {
     val tableCellPaddingH: Dp = 12.dp
     val tableCellPaddingV: Dp = 10.dp
 
+    /** CompareTable fit: the compact (8 dp) and tight (6 dp) cell paddings it steps down to before it scrolls. */
+    val tableCellPaddingCompactH: Dp = 8.dp
+    val tableCellPaddingTightH: Dp = 6.dp
+
     /** CompareTable scroll cue: ink at this alpha, fading in at the edge where more columns wait. */
     const val TABLE_SCROLL_SHADE_ALPHA = 0.12f
 

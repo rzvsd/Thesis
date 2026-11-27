@@ -516,7 +516,7 @@ private fun ShellContentScope.SearchEntry(padding: PaddingValues) {
                 actions.onOpenReport(reportId)
             } else {
                 // Name at "Your notes", on the matched note's own trail entry (PR-4b, WP-K).
-                actions.onOpenNameIn(ticker, null, noteEntryAnchor(reportId))
+                actions.onOpenNameIn(ticker, null, Destination.Name.noteEntryAnchor(reportId))
             }
         },
         onSubmit = actions::onAddRecentSearch
@@ -577,11 +577,11 @@ private fun ShellContentScope.NameEntry(entry: NavEntry, destination: Destinatio
         focusNote = destination.anchor == Destination.Name.ANCHOR_WRITE_NOTE,
         scrollTo = when {
             destination.anchor == Destination.Name.ANCHOR_NOTES -> NameAnchor.Notes
-            noteEntryOf(destination.anchor) != null -> NameAnchor.Notes
+            Destination.Name.noteEntryOf(destination.anchor) != null -> NameAnchor.Notes
             destination.anchor == Destination.Name.ANCHOR_CHANGES -> NameAnchor.Changes
             else -> null
         },
-        noteKey = noteEntryOf(destination.anchor),
+        noteKey = Destination.Name.noteEntryOf(destination.anchor),
         onRetry = { actions.onEnsureName(ticker) },
         onFollowChange = { on -> if (on) actions.onAddName(ticker) else actions.onUnfollowName(ticker) },
         onOpenReport = { reportId -> actions.onOpenReport(reportId, ticker) },
@@ -859,21 +859,6 @@ private fun ShellContentScope.DeepDiveScreenFor(
         )
     )
 }
-
-/**
- * A note search hit's `Destination.Name` anchor: "Your notes" at one trail entry, named by its key (the report id):
- * `notes:<reportId>`. It rides in the existing anchor field, so the destination's codec and saved stacks need no
- * change (docs/app-redesign/handoff/HANDOFF-K.md: WP-INT may move it next to `Destination.Name.ANCHOR_NOTES`).
- */
-internal fun noteEntryAnchor(reportId: String): String = Destination.Name.ANCHOR_NOTES + NOTE_ENTRY_MARK + reportId
-
-/** The trail entry key a [noteEntryAnchor] names; null for any other anchor. */
-internal fun noteEntryOf(anchor: String?): String? =
-    anchor?.takeIf { it.startsWith(Destination.Name.ANCHOR_NOTES + NOTE_ENTRY_MARK) }
-        ?.substring(Destination.Name.ANCHOR_NOTES.length + NOTE_ENTRY_MARK.length)
-        ?.ifBlank { null }
-
-private const val NOTE_ENTRY_MARK = ":"
 
 /**
  * The window bounds a row captured just before its tap ran the open callback (rows hand them over first, then

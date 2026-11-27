@@ -23,6 +23,7 @@ class DestinationCodecTest {
         Destination.Name("AAPL"),
         Destination.Name("BRK.B", pagerScope = "names:filter=at_risk|sort=score"),
         Destination.Name("AAPL", anchor = Destination.Name.ANCHOR_NOTES),
+        Destination.Name("AAPL", null, Destination.Name.noteEntryAnchor("rep-1")),
         Destination.Name("MSFT", pagerScope = "today", anchor = Destination.Name.ANCHOR_CHANGES),
         Destination.Report("rep_1"),
         Destination.Report("rep_2", ticker = "MSFT", chapter = "02-business"),
@@ -48,6 +49,17 @@ class DestinationCodecTest {
         // A back stack saved by the PR-2 build has one field fewer for Pulse and Name.
         assertEquals(Destination.Pulse("2026-11-24"), Destination.decode("pulse|2026-11-24"))
         assertEquals(Destination.Name("AAPL", "today"), Destination.decode("name|AAPL|today"))
+    }
+
+    @Test
+    fun aNoteEntryAnchorNamesItsReportAndNoOtherAnchorDoes() {
+        val anchor = Destination.Name.noteEntryAnchor("rep-1")
+        assertEquals("notes:rep-1", anchor)
+        assertEquals("rep-1", Destination.Name.noteEntryOf(anchor))
+        assertNull(Destination.Name.noteEntryOf(Destination.Name.ANCHOR_NOTES))
+        assertNull(Destination.Name.noteEntryOf(Destination.Name.ANCHOR_NOTE_ENTRY_PREFIX))
+        assertNull(Destination.Name.noteEntryOf(Destination.Name.ANCHOR_WRITE_NOTE))
+        assertNull(Destination.Name.noteEntryOf(null))
     }
 
     @Test

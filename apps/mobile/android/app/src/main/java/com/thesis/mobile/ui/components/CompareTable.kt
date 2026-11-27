@@ -397,13 +397,14 @@ fun Density.compareTableDensities(): List<CompareTableDensity> {
     return listOf(
         CompareTableDensity(comfortable, Kit.tableColumnMin.roundToPx(), wrapHeaders = false),
         CompareTableDensity(comfortable, 0, wrapHeaders = false),
-        CompareTableDensity(ThesisSpace.s.roundToPx(), 0, wrapHeaders = true),
-        CompareTableDensity((ThesisSpace.xs + ThesisSpace.xxs).roundToPx(), 0, wrapHeaders = true),
+        CompareTableDensity(Kit.tableCellPaddingCompactH.roundToPx(), 0, wrapHeaders = true),
+        CompareTableDensity(Kit.tableCellPaddingTightH.roundToPx(), 0, wrapHeaders = true),
     )
 }
 
 /** The density a table that cannot fit scrolls at: compact (8 dp), so more columns show before the swipe. */
-fun Density.compareTableScrollDensity(): CompareTableDensity = CompareTableDensity(ThesisSpace.s.roundToPx(), 0, wrapHeaders = true)
+fun Density.compareTableScrollDensity(): CompareTableDensity =
+    CompareTableDensity(Kit.tableCellPaddingCompactH.roundToPx(), 0, wrapHeaders = true)
 
 /** [fitCompareTable] with the kit's densities; [sortable] headers keep every column at 48 dp. */
 fun Density.fitCompareTable(needs: CompareTableNeeds, maxWidth: Int?, sortable: Boolean = false): CompareTableFit =
