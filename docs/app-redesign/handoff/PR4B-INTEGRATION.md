@@ -58,6 +58,20 @@ are as in PR-4a). Then, on a phone (from HANDOFF-M, the first item is a **gate**
 
 ## Verification (this branch)
 
-See the commit message of the integration commit for the numbers of the final run: design-preview compile (main and
-test), the app's unit tests (`-PappTestsOnly`), the renders/semantics/harness half (`-PrendersOnly`, full run),
-`tools/design-lint.sh` (at or below baseline) and `tools/gold-share.py` (every render under 8%).
+Run on the integration head with `/opt/gradle/bin/gradle -p design-preview ... --offline` (CMP 1.7.3):
+
+- `compileKotlin compileTestKotlin`: clean.
+- App unit tests (`test -PappTestsOnly`): 478 tests, 0 failures, 0 errors.
+- Renders, semantics and harness tests (`test -PrendersOnly`, full run, 37 min): 730 tests, 0 failures, 0 errors;
+  1262 PNGs (631 screens, dark and light). Looked at: the PR-4b motion frames (container transform open/close at
+  412 dp and 360 dp/2.0x, held back at 25%/50% for push, Name and report, cancel and commit, reduced motion), Names
+  and Pulse pull to refresh (Pulse's gap is navy with a legible line in both themes), the note-hit renders, Compare
+  names/reports at 412/360 dp and 1.3x/2.0x, and contact sheets of Shell, Today, Research, Inbox and Names. No
+  regressions against PR-4a.
+- `tools/design-lint.sh`: OK, 0 findings in 97 files, none above the baseline.
+- `tools/gold-share.py design-preview/build/screens`: 980 renders measured (kit sheets skipped), none over 8%; the
+  highest is `account-onboarding-4-names-scale2.0-dark` at 7.62% (unchanged screen).
+- Android-only files: none changed in this PR besides `app/build.gradle.kts` (the Material 2 row). Checked that no
+  `androidx.compose.material.*` import outside `material3`, `material.icons` and `material.ripple` is left in
+  `app/src`, that `ThesisShell`'s signature (the one `ThesisApp` calls) is unchanged, and that `MainViewModel`'s
+  `Destination.Name(symbol, pagerScope, anchor)` passes the new `notes:<reportId>` anchor through untouched.
